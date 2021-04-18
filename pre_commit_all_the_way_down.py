@@ -67,9 +67,7 @@ def fix_block(block: str, whitelist: Sequence[Optional[str]]):
         for wl in whitelist:
             _pre_commit_helper(str(fname), wl)
 
-        with fname.open("r") as f:
-            newBlock = f.read()
-
+        newBlock = fname.read_text()
     return newBlock
 
 
