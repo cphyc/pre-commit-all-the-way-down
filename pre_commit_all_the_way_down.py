@@ -35,7 +35,7 @@ pre_commit = sh.Command("pre-commit").bake("run", "--files")
 
 def fix_block(block: str, filename: str):
     """
-    Fixes a code block.
+    Fix a code block.
 
     Parameters
     ----------
@@ -45,8 +45,12 @@ def fix_block(block: str, filename: str):
         The name of the file it originates from (used for logging)
     lineno : int
         The linenumber in `filename` where the block starts.
-    """
 
+    Notes
+    -----
+    The code block should have no leading indentation and be valid
+    Python.
+    """
     with TemporaryDirectory(dir=".") as d:
         fname = Path(d) / "script.py"
         with fname.open("w") as f:
