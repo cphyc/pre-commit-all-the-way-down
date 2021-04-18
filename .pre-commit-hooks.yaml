@@ -1,5 +1,5 @@
--   id: pre-commit-all-the-way-down
-    name: pre-commit-all-the-way-down
+-   id: python-doc
+    name: python-doc
     description: Run `pre-commit` on python code blocks in documentation files
     entry: pre-commit-all-the-way-down
     language: python
