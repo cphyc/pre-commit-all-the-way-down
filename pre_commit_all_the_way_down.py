@@ -46,9 +46,9 @@ def fix_block(block: str, whitelist: Sequence[Optional[str]]):
 
     def _pre_commit_helper(fname: str, hook_id: Optional[str]):
         args = ["pre-commit", "run"]
-        if hook_id:
-            args += [hook_id]
-        args += ["--files", fname]
+        if hook_id is not None:
+            args.append(hook_id)
+        args.extend(("--files", fname))
         try:
             subprocess.run(args, check=True, capture_output=True)
         except subprocess.CalledProcessError as e:
