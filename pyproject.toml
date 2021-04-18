@@ -1,0 +1,17 @@
+[project]
+name = "pre_commit_all_the_way_down"
+version = "0.0.1"
+description = "Apply pre-commit hooks on chunks of files as a pre-commit hook."
+authors = [
+    "Corentin Cadio <contact@cphyc.me>"
+]
+license = "MIT"
+readme = "Readme.md"
+python = "^3.6"
+homepage = "https://github.com/cphyc/pre-commit-all-the-way-down"
+repository = "https://github.com/cphyc/pre-commit-all-the-way-down"
+documentation = "https://github.com/cphyc/pre-commit-all-the-way-down"
+
+classifiers = [
+    "Topic :: Software Development"
+]
