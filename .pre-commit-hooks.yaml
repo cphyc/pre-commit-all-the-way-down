@@ -1,0 +1,7 @@
+-   id: pre-commit-all-the-way-down
+    name: pre-commit-all-the-way-down
+    description: Run `pre-commit` on python code blocks in documentation files
+    entry: pre-commit-all-the-way-down
+    language: python
+    language_version: python3
+    files: '\.(rst)$'
