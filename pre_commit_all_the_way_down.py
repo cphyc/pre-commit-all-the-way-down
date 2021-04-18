@@ -1,16 +1,13 @@
 import argparse
 import re
-from difflib import context_diff
-from glob import glob
 from pathlib import Path
 from re import Match
 from sys import exit
 from tempfile import TemporaryDirectory
 from textwrap import dedent, indent
-from typing import List, Optional, Sequence
+from typing import Optional, Sequence
 
 import sh
-import toml
 
 BLOCK_TYPES = "(code|code-block|sourcecode|ipython)"
 PY_LANGS = "(python|py|sage|python3|py3|numpy)"
@@ -50,39 +47,33 @@ def fix_block(block: str, filename: str):
         The linenumber in `filename` where the block starts.
     """
 
-    block = dedent(block)
-    # FIXME: this should be caught upstream
-    # remove head and trailing spaces
-    while block[0] == "\n":
-        block = block[1:]
-    while block[-1] == "\n":
-        block = block[:-1]
-    block += "\n"
-
     with TemporaryDirectory(dir=".") as d:
         fname = Path(d) / "script.py"
         with fname.open("w") as f:
             f.write(block)
         try:
-            out = pre_commit(str(fname))
+            pre_commit(str(fname))
         except sh.ErrorReturnCode as e:
             # FIXME: do something with error, e.stdout
-            pass
+            print(e.stdout.decode())
         with fname.open("r") as f:
             newBlock = f.read()
 
-    return indent(newBlock, prefix="   ")
+    return newBlock
 
 
 def fmt_source(src: str, fname: str) -> str:
     def _rst_match(match: Match[str]) -> str:
-        # From https://github.com/asottile/blacken-docs/blob/ef58f2fcf2edbea87ba13d7463c13a9e7b282c1c/blacken_docs.py#L99-L99
+        # From https://github.com/asottile/blacken-docs/blob/ef58f2fcf2edbea87ba13d7463c13a9e7b282c1c/blacken_docs.py#L99-L99  # noqa
         min_indent = min(INDENT_RE.findall(match["code"]))
         trailing_ws_match = TRAILING_NL_RE.search(match["code"])
         assert trailing_ws_match
         trailing_ws = trailing_ws_match.group()
-        code = dedent(match["code"])
-        fix_block(code, fname)
+        code = TRAILING_NL_RE.sub("", match["code"])
+        code = dedent(code)
+        # Add a trailing new line to prevent pre-commit to fail because of that
+        code += "\n"
+        code = fix_block(code, fname)
         code = indent(code, min_indent)
         return f'{match["before"]}{code.rstrip()}{trailing_ws}'
 
