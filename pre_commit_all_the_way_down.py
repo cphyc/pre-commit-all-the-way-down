@@ -57,8 +57,7 @@ def fix_block(block: str, whitelist: Sequence[Optional[str]]):
 
     with TemporaryDirectory(dir=".") as d:
         fname = Path(d) / "script.py"
-        with fname.open("w") as f:
-            f.write(block)
+        fname.write_text(block)
 
         if not whitelist:
             whitelist = [None]
