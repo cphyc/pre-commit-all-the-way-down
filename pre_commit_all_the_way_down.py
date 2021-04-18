@@ -55,7 +55,7 @@ def fix_block(block: str, whitelist: Sequence[Optional[str]]):
             print(e.stderr.decode(), file=sys.stderr)
             print(e.stdout.decode(), file=sys.stdout)
 
-    with TemporaryDirectory(dir=".") as d:
+    with TemporaryDirectory() as d:
         fname = Path(d) / "script.py"
         fname.write_text(block)
 
