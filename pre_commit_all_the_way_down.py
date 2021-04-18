@@ -1,16 +1,42 @@
-from glob import glob
-from textwrap import dedent, indent
-from typing import List
-
-from tempfile import TemporaryDirectory
-from pathlib import Path
+import argparse
+import re
 from difflib import context_diff
+from glob import glob
+from pathlib import Path
+from re import Match
+from sys import exit
+from tempfile import TemporaryDirectory
+from textwrap import dedent, indent
+from typing import List, Optional, Sequence
 
 import sh
+import toml
+
+BLOCK_TYPES = "(code|code-block|sourcecode|ipython)"
+PY_LANGS = "(python|py|sage|python3|py3|numpy)"
+DOCTEST_TYPES = "(testsetup|testcleanup|testcode)"
+RST_RE = re.compile(
+    rf"(?P<before>"
+    rf"^(?P<indent> *)\.\. ("
+    rf"jupyter-execute::|"
+    rf"python-script::|"
+    rf"{BLOCK_TYPES}:: {PY_LANGS}|"
+    rf"{DOCTEST_TYPES}::.*"
+    rf")\n"
+    rf"((?P=indent) +:.*\n)*"
+    rf"\n*"
+    rf")"
+    rf"(?P<code>(^((?P=indent) +.*)?\n)+)",
+    re.MULTILINE,
+)
+INDENT_RE = re.compile("^ +(?=[^ ])", re.MULTILINE)
+TRAILING_NL_RE = re.compile(r"\n+\Z", re.MULTILINE)
+
 
 pre_commit = sh.Command("pre-commit").bake("run", "--files")
 
-def fix_block(block: str, filename: str, lineno: int):
+
+def fix_block(block: str, filename: str):
     """
     Fixes a code block.
 
@@ -40,64 +66,55 @@ def fix_block(block: str, filename: str, lineno: int):
         try:
             out = pre_commit(str(fname))
         except sh.ErrorReturnCode as e:
-            print(f"In {filename}:{lineno}")
-            print(indent(e.stdout.decode(), prefix="   "))
+            # FIXME: do something with error, e.stdout
+            pass
         with fname.open("r") as f:
             newBlock = f.read()
 
-    return indent(
-        newBlock,
-        prefix="   ",
-    )
+    return indent(newBlock, prefix="   ")
 
 
-def fix_python_docstrings(lines: List[str], fname: str):
-    """
-    Fixes docstrings in .rst files.
+def fmt_source(src: str, fname: str) -> str:
+    def _rst_match(match: Match[str]) -> str:
+        # From https://github.com/asottile/blacken-docs/blob/ef58f2fcf2edbea87ba13d7463c13a9e7b282c1c/blacken_docs.py#L99-L99
+        min_indent = min(INDENT_RE.findall(match["code"]))
+        trailing_ws_match = TRAILING_NL_RE.search(match["code"])
+        assert trailing_ws_match
+        trailing_ws = trailing_ws_match.group()
+        code = dedent(match["code"])
+        fix_block(code, fname)
+        code = indent(code, min_indent)
+        return f'{match["before"]}{code.rstrip()}{trailing_ws}'
 
-    Parameters
-    ----------
-    lines : List[str]
-        A list of lines. See notes for what is fixed.
-    fname : str
-        The name of the file (used for logging)
+    src = RST_RE.sub(_rst_match, src)
+    return src
 
-    Returns
-    -------
-    The modified content as a list of lines.
 
-    Notes
-    -----
-    The fixed blocks have the form
-    >>> .. python-script::
-    ...
-    ...    import numpy as np
-    ...    [...]
+def format_file(filename: str) -> int:
+    with open(filename, encoding="UTF-8") as f:
+        contents = f.read()
 
-    """
-    state = 0
-    newLines = []
-    for iline, line in enumerate(lines):
-        line = line.rstrip()
-        # Start of block
-        if line == ".. python-script::":
-            state = 1
-            start = iline + 1
-            newLines.append(line)
-        elif state == 1 and not (line.startswith(" ") or line == ""):
-            block = "".join(lines[start:iline])
-            newLines.append("")
-            newLines.extend(fix_block(block, fname, start).split("\n"))
-            newLines.append(line)
-            state = 0
-        elif state == 0:
-            newLines.append(line)
+    newContents = fmt_source(contents, filename)
+    if newContents != contents:
+        print(f"{filename}: Rewriting...")
+        with open(filename, mode="w") as f:
+            f.write(newContents)
+        return 1
+    else:
+        return 0
 
-    # Happens if we reach EOF
-    if state == 1:
-        block = "".join(lines[start:iline])
-        newLines.append("")
-        newLines.extend(fix_block(block, fname, start).split("\n"))
-        newLines.append(line)
 
-    return newLines
+def main(argv: Optional[Sequence[str]] = None) -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("filenames", nargs="*")
+    args = parser.parse_args(argv)
+
+    retv = 0
+    for filename in args.filenames:
+        retv |= format_file(filename)
+
+    return retv
+
+
+if __name__ == "__main__":
+    exit(main())
