@@ -1,13 +1,12 @@
 import argparse
 import re
+import subprocess
 import sys
 from pathlib import Path
 from re import Match
 from tempfile import TemporaryDirectory
 from textwrap import dedent, indent
 from typing import Optional, Sequence
-
-import sh
 
 BLOCK_TYPES = "(code|code-block|sourcecode|ipython)"
 PY_LANGS = "(python|py|sage|python3|py3|numpy)"
@@ -46,15 +45,15 @@ def fix_block(block: str, whitelist: Sequence[Optional[str]]):
     """
 
     def _pre_commit_helper(fname: str, hook_id: Optional[str]):
-        args = ["run"]
+        args = ["pre-commit", "run"]
         if hook_id:
             args += [hook_id]
         args += ["--files", fname]
         try:
-            sh.pre_commit(*args)
-        except sh.ErrorReturnCode as e:
-            # FIXME: do something with error, e.stdout
-            print(e.stdout.decode())
+            subprocess.run(args, check=True, capture_output=True)
+        except subprocess.CalledProcessError as e:
+            print(e.stderr.decode(), file=sys.stderr)
+            print(e.stdout.decode(), file=sys.stdout)
 
     with TemporaryDirectory(dir=".") as d:
         fname = Path(d) / "script.py"
