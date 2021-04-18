@@ -29,11 +29,10 @@ RST_RE = re.compile(
 INDENT_RE = re.compile("^ +(?=[^ ])", re.MULTILINE)
 TRAILING_NL_RE = re.compile(r"\n+\Z", re.MULTILINE)
 
-
 pre_commit = sh.Command("pre-commit").bake("run", "--files")
 
 
-def fix_block(block: str, filename: str):
+def fix_block(block: str):
     """
     Fix a code block.
 
@@ -41,10 +40,6 @@ def fix_block(block: str, filename: str):
     ----------
     block : str
         The block to fix
-    filename : str
-        The name of the file it originates from (used for logging)
-    lineno : int
-        The linenumber in `filename` where the block starts.
 
     Notes
     -----
@@ -67,8 +62,9 @@ def fix_block(block: str, filename: str):
 
 
 def fmt_source(src: str, fname: str) -> str:
+    # The _*_match functions are adapted from
+    # https://github.com/asottile/blacken-docs
     def _rst_match(match: Match[str]) -> str:
-        # From https://github.com/asottile/blacken-docs/blob/ef58f2fcf2edbea87ba13d7463c13a9e7b282c1c/blacken_docs.py#L99-L99  # noqa
         min_indent = min(INDENT_RE.findall(match["code"]))
         trailing_ws_match = TRAILING_NL_RE.search(match["code"])
         assert trailing_ws_match
@@ -77,7 +73,7 @@ def fmt_source(src: str, fname: str) -> str:
         code = dedent(code)
         # Add a trailing new line to prevent pre-commit to fail because of that
         code += "\n"
-        code = fix_block(code, fname)
+        code = fix_block(code)
         code = indent(code, min_indent)
         return f'{match["before"]}{code.rstrip()}{trailing_ws}'
 
