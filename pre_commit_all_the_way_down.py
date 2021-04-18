@@ -29,10 +29,8 @@ RST_RE = re.compile(
 INDENT_RE = re.compile("^ +(?=[^ ])", re.MULTILINE)
 TRAILING_NL_RE = re.compile(r"\n+\Z", re.MULTILINE)
 
-pre_commit = sh.Command("pre-commit").bake("run", "--files")
 
-
-def fix_block(block: str):
+def fix_block(block: str, whitelist: Sequence[Optional[str]]):
     """
     Fix a code block.
 
@@ -46,22 +44,36 @@ def fix_block(block: str):
     The code block should have no leading indentation and be valid
     Python.
     """
+
+    def _pre_commit_helper(fname: str, hook_id: Optional[str]):
+        args = ["run"]
+        if hook_id:
+            args += [hook_id]
+        args += ["--files", fname]
+        try:
+            sh.pre_commit(*args)
+        except sh.ErrorReturnCode as e:
+            # FIXME: do something with error, e.stdout
+            print(e.stdout.decode())
+
     with TemporaryDirectory(dir=".") as d:
         fname = Path(d) / "script.py"
         with fname.open("w") as f:
             f.write(block)
-        try:
-            pre_commit(str(fname))
-        except sh.ErrorReturnCode as e:
-            # FIXME: do something with error, e.stdout
-            print(e.stdout.decode())
+
+        if not whitelist:
+            whitelist = [None]
+
+        for wl in whitelist:
+            _pre_commit_helper(str(fname), wl)
+
         with fname.open("r") as f:
             newBlock = f.read()
 
     return newBlock
 
 
-def fmt_source(src: str, fname: str) -> str:
+def fmt_source(src: str, fname: str, whitelist: Sequence[str]) -> str:
     # The _*_match functions are adapted from
     # https://github.com/asottile/blacken-docs
     def _rst_match(match: Match[str]) -> str:
@@ -73,7 +85,7 @@ def fmt_source(src: str, fname: str) -> str:
         code = dedent(code)
         # Add a trailing new line to prevent pre-commit to fail because of that
         code += "\n"
-        code = fix_block(code)
+        code = fix_block(code, whitelist)
         code = indent(code, min_indent)
         return f'{match["before"]}{code.rstrip()}{trailing_ws}'
 
@@ -81,11 +93,11 @@ def fmt_source(src: str, fname: str) -> str:
     return src
 
 
-def format_file(filename: str) -> int:
+def format_file(filename: str, whitelist: Sequence[str]) -> int:
     with open(filename, encoding="UTF-8") as f:
         contents = f.read()
 
-    newContents = fmt_source(contents, filename)
+    newContents = fmt_source(contents, filename, whitelist)
     if newContents != contents:
         print(f"{filename}: Rewriting...")
         with open(filename, mode="w") as f:
@@ -98,11 +110,18 @@ def format_file(filename: str) -> int:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("filenames", nargs="*")
+    parser.add_argument(
+        "--whitelist",
+        nargs="+",
+        default=[],
+        type=str,
+        help="A whitelist of hooks id to run",
+    )
     args = parser.parse_args(argv)
 
     retv = 0
     for filename in args.filenames:
-        retv |= format_file(filename)
+        retv |= format_file(filename, args.whitelist)
 
     return retv
 
