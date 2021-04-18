@@ -117,7 +117,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     retv = 0
     for filename in args.filenames:
-        retv |= format_file(filename, args.whitelist)
+        retv += format_file(filename, args.whitelist)
 
     return retv
 
