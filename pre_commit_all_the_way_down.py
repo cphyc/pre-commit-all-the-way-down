@@ -1,8 +1,8 @@
 import argparse
 import re
+import sys
 from pathlib import Path
 from re import Match
-from sys import exit
 from tempfile import TemporaryDirectory
 from textwrap import dedent, indent
 from typing import Optional, Sequence
@@ -97,12 +97,12 @@ def format_file(filename: str, whitelist: Sequence[str]) -> int:
 
     newContents = fmt_source(contents, filename, whitelist)
     if newContents != contents:
-        print(f"{filename}: Rewriting...")
+        print(f"Rewriting {filename}", file=sys.stderr)
         with open(filename, mode="w") as f:
             f.write(newContents)
         return 1
-    else:
-        return 0
+
+    return 0
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -125,4 +125,4 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 
 if __name__ == "__main__":
-    exit(main())
+    sys.exit(main())
