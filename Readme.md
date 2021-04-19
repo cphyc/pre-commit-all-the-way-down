@@ -1,12 +1,17 @@
 # Pre-commit all the way down
 
-Run [`pre-commit`](https://pypi.org/project/pre-commit/) on python code blocks
-in documentation file. This is inspired from the great
+pre-commit hooks to run [`pre-commit`](https://pypi.org/project/pre-commit/) on
+code snippets embeded in files that don't match the language used.
+
+The primary (and currently only) application for this is to apply
+Python-targeted hooks to Python snippets included in documentation files.
+
+This project is inspired by the great
 [`blacken-docs`](https://pypi.org/project/blacken-docs/).
 
 ## Install
 
-The package is not on Pypi yet, but in the meantime you can install it via
+The package is not available on Pypi yet. In the meantime it can be installed as
 ```shell
 pip install git+https://github.com/cphyc/pre-commit-all-the-way-down.git#egg=pre_commit_all_the_way_down
 ```
@@ -19,17 +24,22 @@ pip install .
 
 ## Usage
 
-This provides a single executable, `python-doc` which will do the following:
-1. extract Python code snippets from `rst` files,
-2. write their content to temporary files,
-3. apply them `pre-commit` on these files using the configuration from the current directory,
-4. write back the eventually-modified content into the original file.
+### python-doc
+This hook applies pre-commit hooks to Python blocks in `.rst` files.
+It does so in 4 steps
+1. extract Python code snippets
+2. write their content to temporary files
+3. run `pre-commit` hooks against these files
+4. write back to the original file.
 
 The executable has a single option, `--whitelist` which allows to explicitly list which `pre-commit` hooks will be run.
 For example
 ```shell
-python-doc documentation.rst  # will apply all pre-commit hooks to the file
-python-doc documentation.rst --whitelist black --whitelist isort  # will only apply black & isort
+# will apply all pre-commit hooks to the file
+python-doc documentation.rst
+
+# will only apply black & isort
+python-doc documentation.rst --whitelist black --whitelist isort
 ```
 
 ## Usage with pre-commit
@@ -37,7 +47,7 @@ python-doc documentation.rst --whitelist black --whitelist isort  # will only ap
 The package has been tailored to fit in the `pre-commit` machinery. To use it, add the following to your `.pre-commit-config.yaml` file
 ```yaml
 -   repo: https://github.com/cphyc/pre-commit-all-the-way-down
-    rev: v0.0.1
+    rev: v0.0.2
     hooks:
     -   id: python-doc
 ```
