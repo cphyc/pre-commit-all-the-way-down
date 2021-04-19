@@ -1,4 +1,5 @@
 import argparse
+import ast
 import re
 import subprocess
 import sys
@@ -6,7 +7,7 @@ from pathlib import Path
 from re import Match
 from tempfile import TemporaryDirectory
 from textwrap import dedent, indent
-from typing import Optional, Sequence
+from typing import Callable, Optional, Sequence
 
 BLOCK_TYPES = "(code|code-block|sourcecode|ipython)"
 PY_LANGS = "(python|py|sage|python3|py3|numpy)"
@@ -24,6 +25,9 @@ RST_RE = re.compile(
     rf")"
     rf"(?P<code>(^((?P=indent) +.*)?\n)+)",
     re.MULTILINE,
+)
+REPL_RE = re.compile(
+    "(?P<content>(?P<indent> *)>{3} .*\n((?P=indent)\\.{3} .*\n)*)", re.MULTILINE
 )
 INDENT_RE = re.compile("^ +(?=[^ ])", re.MULTILINE)
 TRAILING_NL_RE = re.compile(r"\n+\Z", re.MULTILINE)
@@ -68,6 +72,38 @@ def apply_pre_commit_on_block(block: str, whitelist: Sequence[Optional[str]]) ->
     return newBlock
 
 
+def walk_ast_helper(callback: Callable[[Match[str]], str], src: str) -> str:
+    lines = src.splitlines()
+    newLines = lines.copy()
+
+    # Extract all functions and classes
+    tree = ast.parse(src)
+    nodes = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.Module))
+    ]
+
+    # Iterate over docstrings in reversed order so that lines
+    # can be modified
+    for node in reversed(nodes):
+        docstring = ast.get_docstring(node)
+        if not docstring:
+            continue
+
+        doc_node = node.body[0]
+        docstring_lines = lines[doc_node.lineno - 1 : doc_node.end_lineno]
+        doc = "\n".join(docstring_lines)
+
+        doc = REPL_RE.sub(callback, doc)
+        newLines = (
+            newLines[: doc_node.lineno - 1]
+            + doc.splitlines()
+            + newLines[doc_node.end_lineno :]
+        )
+    return "\n".join(newLines)
+
+
 def apply_pre_commit_on_str(src: str, fname: str, whitelist: Sequence[str]) -> str:
     # The _*_match functions are adapted from
     # https://github.com/asottile/blacken-docs
@@ -84,7 +120,23 @@ def apply_pre_commit_on_str(src: str, fname: str, whitelist: Sequence[str]) -> s
         code = indent(code, min_indent)
         return f'{match["before"]}{code.rstrip()}{trailing_ws}'
 
-    src = RST_RE.sub(_rst_match, src)
+    def _pycon_match(match: Match[str]) -> str:
+        head_ws = match["indent"]
+        block = "\n".join(
+            line[len(head_ws) + 4 :] for line in match["content"].splitlines()
+        )
+        tmp_code = apply_pre_commit_on_block(block, whitelist)
+        code_lines = []
+        for i, line in enumerate(tmp_code.splitlines()):
+            if i == 0:
+                code_lines.append(f"{head_ws}>>> {line}\n")
+            else:
+                code_lines.append(f"{head_ws}... {line}\n")
+        return "".join(code_lines)
+
+    # src = RST_RE.sub(_rst_match, src)
+    src = walk_ast_helper(_pycon_match, src)
+
     return src
 
 
