@@ -34,7 +34,7 @@ python-doc documentation.rst --whitelist black isort  # will only apply black & 
 
 ## Usage with pre-commit
 
-The package has been tailored to fit in the `pre-commit` machinery. To use it, the following to your `.pre-commit-config.yaml` file
+The package has been tailored to fit in the `pre-commit` machinery. To use it, add the following to your `.pre-commit-config.yaml` file
 ```yaml
 -   repo: https://github.com/cphyc/pre-commit-all-the-way-down
     rev: v0.0.1
