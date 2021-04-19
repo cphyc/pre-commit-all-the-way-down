@@ -159,7 +159,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("filenames", nargs="*")
     parser.add_argument(
         "--whitelist",
-        nargs="+",
+        action="append",
         default=[],
         type=str,
         help="A whitelist of hook ids to run",
