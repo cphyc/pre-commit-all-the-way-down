@@ -55,13 +55,13 @@ def fix_block(block: str, whitelist: Sequence[Optional[str]]):
             print(e.stderr.decode(), file=sys.stderr)
             print(e.stdout.decode(), file=sys.stdout)
 
+
+    if not whitelist:
+        whitelist = [None]
+
     with TemporaryDirectory() as d:
         fname = Path(d) / "script.py"
         fname.write_text(block)
-
-        if not whitelist:
-            whitelist = [None]
-
         for wl in whitelist:
             _pre_commit_helper(str(fname), wl)
 
