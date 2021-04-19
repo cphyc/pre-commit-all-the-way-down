@@ -133,7 +133,7 @@ def fake_dedent(block: str, level: int) -> str:
 
 
 def apply_pre_commit_rst(
-    src: str, fname: str, whitelist: Sequence[str], skiplist: Sequence[str]
+    src: str, whitelist: Sequence[str], skiplist: Sequence[str]
 ) -> str:
     # The _*_match functions are adapted from
     # https://github.com/asottile/blacken-docs
@@ -159,7 +159,7 @@ def apply_pre_commit_rst(
 
 
 def apply_pre_commit_pydocstring(
-    src: str, fname: str, whitelist: Sequence[str], skiplist: Sequence[str]
+    src: str, whitelist: Sequence[str], skiplist: Sequence[str]
 ) -> str:
     def _pycon_match(match: Match[str]) -> str:
         head_ws = match["indent"]
@@ -198,10 +198,10 @@ def apply_pre_commit_on_file(
 
     _filename, extension = os.path.splitext(filename)
     if extension == ".rst":
-        newContents = apply_pre_commit_rst(contents, filename, whitelist, skiplist)
+        newContents = apply_pre_commit_rst(contents, whitelist, skiplist)
     elif extension == ".py":
         newContents = apply_pre_commit_pydocstring(
-            contents, filename, whitelist, skiplist
+            contents, whitelist, skiplist
         )
     else:
         return 0
