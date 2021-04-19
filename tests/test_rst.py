@@ -1,9 +1,9 @@
 from textwrap import dedent
 
-from pre_commit_all_the_way_down.python_doc import apply_pre_commit_on_str
+from pre_commit_all_the_way_down.python_doc import apply_pre_commit_rst
 
 
-def test_format_python_script():
+def test_format_from_string():
     before = dedent(
         """\
         .. python-script::
@@ -12,7 +12,6 @@ def test_format_python_script():
             import numpy as np
             np.random.rand(10,10,10)
             msg = 'yeeeeeet';
-            print('%s' % msg)
         """
     )
     after = dedent(
@@ -24,9 +23,14 @@ def test_format_python_script():
 
             np.random.rand(10, 10, 10)
             msg = "yeeeeeet"
-            print(f"{msg}")
         """
     )
 
-    out = apply_pre_commit_on_str(before, [])
-    assert out == after
+    out = apply_pre_commit_rst(before, skiplist=["flake8"])
+    assert out == (0, after)
+
+    out = apply_pre_commit_rst(before, whitelist=["black", "isort"])
+    assert out == (0, after)
+
+    out = apply_pre_commit_rst(before, whitelist=["black", "isort", "flake8"])
+    assert out == (1, after)
