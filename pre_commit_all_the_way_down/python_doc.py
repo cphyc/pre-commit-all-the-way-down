@@ -149,8 +149,9 @@ def apply_pre_commit_rst(
         code += "\n"
         code = apply_pre_commit_on_block(code, whitelist, skiplist)
         code = fake_dedent(code, len(min_indent))
+        code = code.strip()
         code = indent(code, min_indent)
-        return f'{match["before"]}{code.rstrip()}{trailing_ws}'
+        return f'{match["before"]}{code}{trailing_ws}'
 
     src = RST_RE.sub(_rst_match, src)
 
