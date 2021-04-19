@@ -110,7 +110,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         nargs="+",
         default=[],
         type=str,
-        help="A whitelist of hooks id to run",
+        help="A whitelist of hook ids to run",
     )
     args = parser.parse_args(argv)
 
