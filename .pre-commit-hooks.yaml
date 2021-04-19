@@ -4,4 +4,4 @@
     entry: python-doc
     language: python
     language_version: python3
-    files: '\.(rst)$'
+    files: '\.(rst|py)$'

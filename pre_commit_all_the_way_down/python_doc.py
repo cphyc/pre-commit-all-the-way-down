@@ -134,7 +134,7 @@ def apply_pre_commit_on_str(src: str, fname: str, whitelist: Sequence[str]) -> s
                 code_lines.append(f"{head_ws}... {line}\n")
         return "".join(code_lines)
 
-    # src = RST_RE.sub(_rst_match, src)
+    src = RST_RE.sub(_rst_match, src)
     src = walk_ast_helper(_pycon_match, src)
 
     return src
