@@ -53,8 +53,7 @@ def fix_block(block: str, whitelist: Sequence[Optional[str]]):
             subprocess.run(args, check=True, capture_output=True)
         except subprocess.CalledProcessError as e:
             print(e.stderr.decode(), file=sys.stderr)
-            print(e.stdout.decode(), file=sys.stdout)
-
+            print(e.stdout.decode())
 
     if not whitelist:
         whitelist = [None]
