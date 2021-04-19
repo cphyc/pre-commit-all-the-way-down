@@ -29,7 +29,7 @@ INDENT_RE = re.compile("^ +(?=[^ ])", re.MULTILINE)
 TRAILING_NL_RE = re.compile(r"\n+\Z", re.MULTILINE)
 
 
-def fix_block(block: str, whitelist: Sequence[Optional[str]]):
+def apply_pre_commit_on_block(block: str, whitelist: Sequence[Optional[str]]) -> str:
     """
     Fix a code block.
 
@@ -68,7 +68,7 @@ def fix_block(block: str, whitelist: Sequence[Optional[str]]):
     return newBlock
 
 
-def fmt_source(src: str, fname: str, whitelist: Sequence[str]) -> str:
+def apply_pre_commit_on_str(src: str, fname: str, whitelist: Sequence[str]) -> str:
     # The _*_match functions are adapted from
     # https://github.com/asottile/blacken-docs
     def _rst_match(match: Match[str]) -> str:
@@ -80,7 +80,7 @@ def fmt_source(src: str, fname: str, whitelist: Sequence[str]) -> str:
         code = dedent(code)
         # Add a trailing new line to prevent pre-commit to fail because of that
         code += "\n"
-        code = fix_block(code, whitelist)
+        code = apply_pre_commit_on_block(code, whitelist)
         code = indent(code, min_indent)
         return f'{match["before"]}{code.rstrip()}{trailing_ws}'
 
@@ -88,11 +88,11 @@ def fmt_source(src: str, fname: str, whitelist: Sequence[str]) -> str:
     return src
 
 
-def format_file(filename: str, whitelist: Sequence[str]) -> int:
+def apply_pre_commit_on_file(filename: str, whitelist: Sequence[str]) -> int:
     with open(filename, encoding="UTF-8") as f:
         contents = f.read()
 
-    newContents = fmt_source(contents, filename, whitelist)
+    newContents = apply_pre_commit_on_str(contents, filename, whitelist)
     if newContents != contents:
         print(f"Rewriting {filename}", file=sys.stderr)
         with open(filename, mode="w") as f:
@@ -116,7 +116,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     retv = 0
     for filename in args.filenames:
-        retv += format_file(filename, args.whitelist)
+        retv += apply_pre_commit_on_file(filename, args.whitelist)
 
     return retv
 
