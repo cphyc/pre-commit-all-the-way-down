@@ -1,5 +1,6 @@
 import argparse
 import ast
+import os
 import re
 import subprocess
 import sys
@@ -33,7 +34,9 @@ INDENT_RE = re.compile("^ +(?=[^ ])", re.MULTILINE)
 TRAILING_NL_RE = re.compile(r"\n+\Z", re.MULTILINE)
 
 
-def apply_pre_commit_on_block(block: str, whitelist: Sequence[Optional[str]]) -> str:
+def apply_pre_commit_on_block(
+    block: str, whitelist: Sequence[Optional[str]], skiplist: Sequence[Optional[str]]
+) -> str:
     """
     Fix a code block.
 
@@ -48,19 +51,25 @@ def apply_pre_commit_on_block(block: str, whitelist: Sequence[Optional[str]]) ->
     Python.
     """
 
+    env = os.environ.copy()
+    if skiplist:
+        env["SKIP"] = ",".join(skiplist)
+
     def _pre_commit_helper(fname: str, hook_id: Optional[str]):
         args = ["pre-commit", "run"]
         if hook_id is not None:
             args.append(hook_id)
         args.extend(("--files", fname))
         try:
-            subprocess.run(args, check=True, capture_output=True)
+            subprocess.run(args, check=True, capture_output=True, env=env)
         except subprocess.CalledProcessError as e:
             print(e.stderr.decode(), file=sys.stderr)
             print(e.stdout.decode())
 
     if not whitelist:
         whitelist = [None]
+    if not skiplist:
+        skiplist = [None]
 
     with TemporaryDirectory() as d:
         fname = Path(d) / "script.py"
@@ -101,10 +110,12 @@ def walk_ast_helper(callback: Callable[[Match[str]], str], src: str) -> str:
             + doc.splitlines()
             + newLines[doc_node.end_lineno :]
         )
-    return "\n".join(newLines)
+    return "\n".join(newLines) + "\n"
 
 
-def apply_pre_commit_on_str(src: str, fname: str, whitelist: Sequence[str]) -> str:
+def apply_pre_commit_on_str(
+    src: str, fname: str, whitelist: Sequence[str], skiplist: Sequence[str]
+) -> str:
     # The _*_match functions are adapted from
     # https://github.com/asottile/blacken-docs
     def _rst_match(match: Match[str]) -> str:
@@ -116,7 +127,7 @@ def apply_pre_commit_on_str(src: str, fname: str, whitelist: Sequence[str]) -> s
         code = dedent(code)
         # Add a trailing new line to prevent pre-commit to fail because of that
         code += "\n"
-        code = apply_pre_commit_on_block(code, whitelist)
+        code = apply_pre_commit_on_block(code, whitelist, skiplist)
         code = indent(code, min_indent)
         return f'{match["before"]}{code.rstrip()}{trailing_ws}'
 
@@ -125,7 +136,7 @@ def apply_pre_commit_on_str(src: str, fname: str, whitelist: Sequence[str]) -> s
         block = "\n".join(
             line[len(head_ws) + 4 :] for line in match["content"].splitlines()
         )
-        tmp_code = apply_pre_commit_on_block(block, whitelist)
+        tmp_code = apply_pre_commit_on_block(block, whitelist, skiplist)
         code_lines = []
         for i, line in enumerate(tmp_code.splitlines()):
             if i == 0:
@@ -140,11 +151,13 @@ def apply_pre_commit_on_str(src: str, fname: str, whitelist: Sequence[str]) -> s
     return src
 
 
-def apply_pre_commit_on_file(filename: str, whitelist: Sequence[str]) -> int:
+def apply_pre_commit_on_file(
+    filename: str, whitelist: Sequence[str], skiplist: Sequence[str]
+) -> int:
     with open(filename, encoding="UTF-8") as f:
         contents = f.read()
 
-    newContents = apply_pre_commit_on_str(contents, filename, whitelist)
+    newContents = apply_pre_commit_on_str(contents, filename, whitelist, skiplist)
     if newContents != contents:
         print(f"Rewriting {filename}", file=sys.stderr)
         with open(filename, mode="w") as f:
@@ -157,18 +170,26 @@ def apply_pre_commit_on_file(filename: str, whitelist: Sequence[str]) -> int:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("filenames", nargs="*")
-    parser.add_argument(
+    group = parser.add_argument_group()
+    group.add_argument(
         "--whitelist",
         action="append",
         default=[],
         type=str,
         help="A whitelist of hook ids to run",
     )
+    group.add_argument(
+        "--skiplist",
+        action="append",
+        default=[],
+        type=str,
+        help="A skiplist of hook ids to skip",
+    )
     args = parser.parse_args(argv)
 
     retv = 0
     for filename in args.filenames:
-        retv += apply_pre_commit_on_file(filename, args.whitelist)
+        retv += apply_pre_commit_on_file(filename, args.whitelist, args.skiplist)
 
     return retv
 
