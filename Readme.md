@@ -30,7 +30,7 @@ It does so in 4 steps
 1. extract Python code snippets
 2. write their content to temporary files
 3. run `pre-commit` hooks against these files
-4. write back the to the original file.
+4. write back to the original file.
 
 The executable has a single option, `--whitelist` which allows to explicitly list which `pre-commit` hooks will be run.
 For example
