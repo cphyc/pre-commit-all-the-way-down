@@ -29,7 +29,7 @@ The executable has a single option, `--whitelist` which allows to explicitly lis
 For example
 ```shell
 python-doc documentation.rst  # will apply all pre-commit hooks to the file
-python-doc documentation.rst --whitelist black isort  # will only apply black & isort
+python-doc documentation.rst --whitelist black --whitelist isort  # will only apply black & isort
 ```
 
 ## Usage with pre-commit
