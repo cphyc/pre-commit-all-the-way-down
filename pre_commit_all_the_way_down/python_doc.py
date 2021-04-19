@@ -154,19 +154,27 @@ def apply_pre_commit_on_str(
 
     def _pycon_match(match: Match[str]) -> str:
         head_ws = match["indent"]
+        trailing_ws_match = TRAILING_NL_RE.search(match["content"])
+        assert trailing_ws_match
+        trailing_ws = trailing_ws_match.group()
         code = "\n".join(
             line[len(head_ws) + 4 :] for line in match["content"].splitlines()
         )
         code = fake_indent(code, len(head_ws) + 4)
         code = apply_pre_commit_on_block(code, whitelist, skiplist)
         code = fake_dedent(code, len(head_ws) + 4)
+        code = code.strip()
         code_lines = []
         for i, line in enumerate(code.splitlines()):
+            # Skip empty lines
+            if line.strip() == "":
+                continue
             if i == 0:
                 code_lines.append(f"{head_ws}>>> {line}\n")
             else:
                 code_lines.append(f"{head_ws}... {line}\n")
-        return "".join(code_lines)
+        newContent = "".join(code_lines)
+        return f"{newContent.rstrip()}{trailing_ws}"
 
     # src = RST_RE.sub(_rst_match, src)
     src = walk_ast_helper(_pycon_match, src)
