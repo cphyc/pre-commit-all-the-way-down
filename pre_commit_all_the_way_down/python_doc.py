@@ -132,7 +132,7 @@ def fake_dedent(block: str, level: int) -> str:
     return dedent("\n".join(lines[i:]))
 
 
-def apply_pre_commit_on_str(
+def apply_pre_commit_rst(
     src: str, fname: str, whitelist: Sequence[str], skiplist: Sequence[str]
 ) -> str:
     # The _*_match functions are adapted from
@@ -152,6 +152,14 @@ def apply_pre_commit_on_str(
         code = indent(code, min_indent)
         return f'{match["before"]}{code.rstrip()}{trailing_ws}'
 
+    src = RST_RE.sub(_rst_match, src)
+
+    return src
+
+
+def apply_pre_commit_pydocstring(
+    src: str, fname: str, whitelist: Sequence[str], skiplist: Sequence[str]
+) -> str:
     def _pycon_match(match: Match[str]) -> str:
         head_ws = match["indent"]
         trailing_ws_match = TRAILING_NL_RE.search(match["content"])
@@ -176,7 +184,6 @@ def apply_pre_commit_on_str(
         newContent = "".join(code_lines)
         return f"{newContent.rstrip()}{trailing_ws}"
 
-    # src = RST_RE.sub(_rst_match, src)
     src = walk_ast_helper(_pycon_match, src)
 
     return src
@@ -188,7 +195,16 @@ def apply_pre_commit_on_file(
     with open(filename, encoding="UTF-8") as f:
         contents = f.read()
 
-    newContents = apply_pre_commit_on_str(contents, filename, whitelist, skiplist)
+    _filename, extension = os.path.splitext(filename)
+    if extension == ".rst":
+        newContents = apply_pre_commit_rst(contents, filename, whitelist, skiplist)
+    elif extension == ".py":
+        newContents = apply_pre_commit_pydocstring(
+            contents, filename, whitelist, skiplist
+        )
+    else:
+        return 0
+
     if newContents != contents:
         print(f"Rewriting {filename}", file=sys.stderr)
         with open(filename, mode="w") as f:
