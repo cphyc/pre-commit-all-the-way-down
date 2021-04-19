@@ -53,7 +53,7 @@ def apply_pre_commit_on_block(
 
     env = os.environ.copy()
     if skiplist:
-        env["SKIP"] = ",".join(skiplist)
+        env["SKIP"] = ",".join(_ for _ in skiplist if _)
 
     def _pre_commit_helper(fname: str, hook_id: Optional[str]):
         args = ["pre-commit", "run"]
@@ -113,6 +113,25 @@ def walk_ast_helper(callback: Callable[[Match[str]], str], src: str) -> str:
     return "\n".join(newLines) + "\n"
 
 
+def fake_indent(block: str, level: int) -> str:
+    i = 0
+    newBlock = ""
+    while i * 4 < level:
+        newBlock += "    " * i + "if True:\n"
+        i += 1
+
+    newBlock += indent(block, " " * (i * 4))
+    return newBlock
+
+
+def fake_dedent(block: str, level: int) -> str:
+    i = 0
+    lines = block.splitlines()
+    while i * 4 < level:
+        i += 1
+    return dedent("\n".join(lines[i:]))
+
+
 def apply_pre_commit_on_str(
     src: str, fname: str, whitelist: Sequence[str], skiplist: Sequence[str]
 ) -> str:
@@ -125,27 +144,31 @@ def apply_pre_commit_on_str(
         trailing_ws = trailing_ws_match.group()
         code = TRAILING_NL_RE.sub("", match["code"])
         code = dedent(code)
+        code = fake_indent(code, len(min_indent))
         # Add a trailing new line to prevent pre-commit to fail because of that
         code += "\n"
         code = apply_pre_commit_on_block(code, whitelist, skiplist)
+        code = fake_dedent(code, len(min_indent))
         code = indent(code, min_indent)
         return f'{match["before"]}{code.rstrip()}{trailing_ws}'
 
     def _pycon_match(match: Match[str]) -> str:
         head_ws = match["indent"]
-        block = "\n".join(
+        code = "\n".join(
             line[len(head_ws) + 4 :] for line in match["content"].splitlines()
         )
-        tmp_code = apply_pre_commit_on_block(block, whitelist, skiplist)
+        code = fake_indent(code, len(head_ws) + 4)
+        code = apply_pre_commit_on_block(code, whitelist, skiplist)
+        code = fake_dedent(code, len(head_ws) + 4)
         code_lines = []
-        for i, line in enumerate(tmp_code.splitlines()):
+        for i, line in enumerate(code.splitlines()):
             if i == 0:
                 code_lines.append(f"{head_ws}>>> {line}\n")
             else:
                 code_lines.append(f"{head_ws}... {line}\n")
         return "".join(code_lines)
 
-    src = RST_RE.sub(_rst_match, src)
+    # src = RST_RE.sub(_rst_match, src)
     src = walk_ast_helper(_pycon_match, src)
 
     return src
