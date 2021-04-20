@@ -5,10 +5,9 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from re import Match
 from tempfile import TemporaryDirectory
 from textwrap import dedent, indent
-from typing import Callable, Optional, Sequence
+from typing import Callable, Match, Optional, Sequence, Tuple
 
 BLOCK_TYPES = "(code|code-block|sourcecode|ipython)"
 PY_LANGS = "(python|py|sage|python3|py3|numpy)"
@@ -35,8 +34,8 @@ TRAILING_NL_RE = re.compile(r"\n+\Z", re.MULTILINE)
 
 
 def apply_pre_commit_on_block(
-    block: str, whitelist: Sequence[Optional[str]], skiplist: Sequence[Optional[str]]
-) -> str:
+    block: str, whitelist: Sequence[str] = None, skiplist: Sequence[str] = None
+) -> Tuple[int, str]:
     """
     Fix a code block.
 
@@ -50,35 +49,36 @@ def apply_pre_commit_on_block(
     The code block should have no leading indentation and be valid
     Python.
     """
-
+    ret = 0
     env = os.environ.copy()
     if skiplist:
         env["SKIP"] = ",".join(_ for _ in skiplist if _)
 
     def _pre_commit_helper(fname: str, hook_id: Optional[str]):
+        nonlocal ret
         args = ["pre-commit", "run"]
         if hook_id is not None:
             args.append(hook_id)
         args.extend(("--files", fname))
         try:
-            subprocess.run(args, check=True, capture_output=True, env=env)
+            state = subprocess.run(args, check=True, capture_output=True, env=env)
+            ret |= state.returncode
         except subprocess.CalledProcessError as e:
             print(e.stderr.decode(), file=sys.stderr)
             print(e.stdout.decode())
-
-    if not whitelist:
-        whitelist = [None]
-    if not skiplist:
-        skiplist = [None]
+            ret |= e.returncode
 
     with TemporaryDirectory() as d:
         fname = Path(d) / "script.py"
         fname.write_text(block)
-        for wl in whitelist:
-            _pre_commit_helper(str(fname), wl)
+        if whitelist:
+            for wl in whitelist:
+                _pre_commit_helper(str(fname), wl)
+        else:
+            _pre_commit_helper(str(fname), None)
 
         newBlock = fname.read_text()
-    return newBlock
+    return ret, newBlock
 
 
 def walk_ast_helper(callback: Callable[[Match[str]], str], src: str) -> str:
@@ -133,11 +133,14 @@ def fake_dedent(block: str, level: int) -> str:
 
 
 def apply_pre_commit_rst(
-    src: str, fname: str, whitelist: Sequence[str], skiplist: Sequence[str]
-) -> str:
+    src: str, *, whitelist: Sequence[str] = None, skiplist: Sequence[str] = None
+) -> Tuple[int, str]:
+    ret = 0
+
     # The _*_match functions are adapted from
     # https://github.com/asottile/blacken-docs
     def _rst_match(match: Match[str]) -> str:
+        nonlocal ret
         min_indent = min(INDENT_RE.findall(match["code"]))
         trailing_ws_match = TRAILING_NL_RE.search(match["code"])
         assert trailing_ws_match
@@ -147,7 +150,10 @@ def apply_pre_commit_rst(
         code = fake_indent(code, len(min_indent))
         # Add a trailing new line to prevent pre-commit to fail because of that
         code += "\n"
-        code = apply_pre_commit_on_block(code, whitelist, skiplist)
+        retcode, code = apply_pre_commit_on_block(
+            code, whitelist=whitelist, skiplist=skiplist
+        )
+        ret |= retcode
         code = fake_dedent(code, len(min_indent))
         code = code.strip()
         code = indent(code, min_indent)
@@ -155,13 +161,17 @@ def apply_pre_commit_rst(
 
     src = RST_RE.sub(_rst_match, src)
 
-    return src
+    return ret, src
 
 
 def apply_pre_commit_pydocstring(
-    src: str, fname: str, whitelist: Sequence[str], skiplist: Sequence[str]
-) -> str:
+    src: str, *, whitelist: Sequence[str] = None, skiplist: Sequence[str] = None
+) -> Tuple[int, str]:
+
+    ret = 0
+
     def _pycon_match(match: Match[str]) -> str:
+        nonlocal ret
         head_ws = match["indent"]
         trailing_ws_match = TRAILING_NL_RE.search(match["content"])
         assert trailing_ws_match
@@ -170,7 +180,10 @@ def apply_pre_commit_pydocstring(
             line[len(head_ws) + 4 :] for line in match["content"].splitlines()
         )
         code = fake_indent(code, len(head_ws) + 4)
-        code = apply_pre_commit_on_block(code, whitelist, skiplist)
+        retcode, code = apply_pre_commit_on_block(
+            code, whitelist=whitelist, skiplist=skiplist
+        )
+        ret |= retcode
         code = fake_dedent(code, len(head_ws) + 4)
         code = code.strip()
         code_lines = []
@@ -187,21 +200,23 @@ def apply_pre_commit_pydocstring(
 
     src = walk_ast_helper(_pycon_match, src)
 
-    return src
+    return ret, src
 
 
 def apply_pre_commit_on_file(
-    filename: str, whitelist: Sequence[str], skiplist: Sequence[str]
+    filename: str, *, whitelist: Sequence[str] = None, skiplist: Sequence[str] = None
 ) -> int:
     with open(filename, encoding="UTF-8") as f:
         contents = f.read()
 
     _filename, extension = os.path.splitext(filename)
     if extension == ".rst":
-        newContents = apply_pre_commit_rst(contents, filename, whitelist, skiplist)
+        retcode, newContents = apply_pre_commit_rst(
+            contents, whitelist=whitelist, skiplist=skiplist
+        )
     elif extension == ".py":
-        newContents = apply_pre_commit_pydocstring(
-            contents, filename, whitelist, skiplist
+        retcode, newContents = apply_pre_commit_pydocstring(
+            contents, whitelist=whitelist, skiplist=skiplist
         )
     else:
         return 0
@@ -210,12 +225,12 @@ def apply_pre_commit_on_file(
         print(f"Rewriting {filename}", file=sys.stderr)
         with open(filename, mode="w") as f:
             f.write(newContents)
-        return 1
+        return 1 | retcode
 
-    return 0
+    return retcode
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: Sequence[str] = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("filenames", nargs="*")
     group = parser.add_argument_group()
@@ -237,7 +252,9 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     retv = 0
     for filename in args.filenames:
-        retv += apply_pre_commit_on_file(filename, args.whitelist, args.skiplist)
+        retv += apply_pre_commit_on_file(
+            filename, whitelist=args.whitelist, skiplist=args.skiplist
+        )
 
     return retv
 
