@@ -5,10 +5,9 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from re import Match
 from tempfile import TemporaryDirectory
 from textwrap import dedent, indent
-from typing import Callable, Optional, Sequence, Tuple
+from typing import Callable, Match, Optional, Sequence, Tuple
 
 BLOCK_TYPES = "(code|code-block|sourcecode|ipython)"
 PY_LANGS = "(python|py|sage|python3|py3|numpy)"
