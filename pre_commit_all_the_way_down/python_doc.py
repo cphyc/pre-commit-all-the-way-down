@@ -226,7 +226,7 @@ def apply_pre_commit_on_file(
         print(f"Rewriting {filename}", file=sys.stderr)
         with open(filename, mode="w") as f:
             f.write(newContents)
-        return 1
+        return 1 | retcode
 
     return retcode
 
