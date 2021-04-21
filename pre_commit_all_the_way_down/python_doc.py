@@ -5,6 +5,7 @@ import re
 import subprocess
 import sys
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from textwrap import dedent, indent
@@ -112,7 +113,9 @@ def apply_pre_commit_on_block(
     return ret, newBlock, errors
 
 
-def walk_ast_helper(callback: Callable[[Match[str]], str], src: str) -> str:
+def walk_ast_helper(
+    callback: Callable[[Match[str], Context, str], str], src: str, context: Context
+) -> str:
     lines = src.splitlines()
     newLines = lines.copy()
 
@@ -135,8 +138,11 @@ def walk_ast_helper(callback: Callable[[Match[str]], str], src: str) -> str:
 
         doc_node = node.body[0]
         docstring_lines = lines[doc_node.lineno - 1 : doc_node.end_lineno]
+        newContext = Context(
+            filename=context.filename, start=doc_node.lineno, end=doc_node.end_lineno
+        )
         doc = "\n".join(docstring_lines)
-        doc = REPL_RE.sub(callback, doc)
+        doc = REPL_RE.sub(partial(callback, context=newContext, docStringSrc=doc), doc)
 
         newLines = (
             newLines[: doc_node.lineno - 1]
@@ -223,7 +229,7 @@ def apply_pre_commit_pydocstring(
     errors: List[Error] = []
     ret = 0
 
-    def _pycon_match(match: Match[str]) -> str:
+    def _pycon_match(match: Match[str], context: Context, docStringSrc: str) -> str:
         nonlocal ret, errors
         head_ws = match["indent"]
         trailing_ws_match = TRAILING_NL_RE.search(match["content"])
@@ -233,8 +239,13 @@ def apply_pre_commit_pydocstring(
             line[len(head_ws) + 4 :] for line in match["content"].splitlines()
         )
         code = fake_indent(code, len(head_ws) + 4)
+        docStringStart = context.start if context.start is not None else 0
+        start = docStringStart + offset_to_lineno(docStringSrc, match.start())
+        end = docStringStart + offset_to_lineno(docStringSrc, match.end())
+
+        newContext = Context(filename=context.filename, start=start, end=end)
         retcode, code, newErrors = apply_pre_commit_on_block(
-            code, context, whitelist=whitelist, skiplist=skiplist
+            code, newContext, whitelist=whitelist, skiplist=skiplist
         )
         errors.extend(newErrors)
 
@@ -253,7 +264,7 @@ def apply_pre_commit_pydocstring(
         newContent = "".join(code_lines)
         return f"{newContent.rstrip()}{trailing_ws}"
 
-    src = walk_ast_helper(_pycon_match, src)
+    src = walk_ast_helper(_pycon_match, src, context)
 
     return ret, src, errors
 
@@ -263,10 +274,14 @@ def print_errors(errors: List[Error]):
         msg = []
         ctx = error.context
         msg.append(f"Error in {ctx.filename}:{ctx.start}:{ctx.end}")
-        msg.append("STDOUT was:")
-        msg.append(indent(error.stdout.rstrip(), " | ", predicate=lambda _line: True))
-        msg.append("STDERR was:")
-        msg.append(indent(error.stderr.rstrip(), " | ", predicate=lambda _line: True))
+        stdout = error.stdout.rstrip()
+        if stdout.strip():
+            msg.append("STDOUT was:")
+            msg.append(indent(stdout, " | ", predicate=lambda _line: True))
+        stderr = error.stderr.rstrip()
+        if stderr.strip():
+            msg.append("STDERR was:")
+            msg.append(indent(stderr, " | ", predicate=lambda _line: True))
 
         print("\n".join(msg), file=sys.stderr)
 
