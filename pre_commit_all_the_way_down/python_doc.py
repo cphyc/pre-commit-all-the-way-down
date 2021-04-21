@@ -246,7 +246,7 @@ def main(argv: Sequence[str] = None) -> int:
     group.add_argument(
         "--skiplist",
         action="append",
-        default=[],
+        default=["python-doc"],
         type=str,
         help="A skiplist of hook ids to skip",
     )
