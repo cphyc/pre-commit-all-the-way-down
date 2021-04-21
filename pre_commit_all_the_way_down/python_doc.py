@@ -347,7 +347,7 @@ def main(argv: Sequence[str] = None) -> int:
             filename,
             whitelist=args.whitelist,
             skiplist=args.skiplist,
-            write_back=False,
+            write_back=args.write_back,
         )
 
     return retv
