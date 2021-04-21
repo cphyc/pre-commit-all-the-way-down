@@ -149,7 +149,12 @@ def walk_ast_helper(
             + doc.splitlines()
             + newLines[doc_node.end_lineno :]
         )
-    return "\n".join(newLines) + "\n"
+
+    formatted = "\n".join(newLines) + "\n"
+    # Return an empty file if it is empty
+    if not formatted.strip():
+        return ""
+    return formatted
 
 
 def fake_indent(block: str, level: int) -> str:
@@ -238,6 +243,10 @@ def apply_pre_commit_pydocstring(
         code = "\n".join(
             line[len(head_ws) + 4 :] for line in match["content"].splitlines()
         )
+        # Special case for
+        # >>> # line with only a comment
+        if code.count("\n") == 0 and code.startswith("#"):
+            return match.group(0)
         code = fake_indent(code, len(head_ws) + 4)
         docStringStart = context.start if context.start is not None else 0
         start = docStringStart + offset_to_lineno(docStringSrc, match.start())
