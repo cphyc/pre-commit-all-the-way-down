@@ -3,6 +3,7 @@ from tempfile import TemporaryDirectory
 from textwrap import dedent
 
 from pre_commit_all_the_way_down.python_doc import (
+    Context,
     apply_pre_commit_on_file,
     apply_pre_commit_rst,
 )
@@ -31,14 +32,19 @@ def test_format_from_string():
         """
     )
 
-    out = apply_pre_commit_rst(before, skiplist=["flake8"])
-    assert out == (0, after)
+    context = Context(filename="dummy")
+    (*out, _errors) = apply_pre_commit_rst(before, context=context, skiplist=["flake8"])
+    assert out == [0, after]
 
-    out = apply_pre_commit_rst(before, whitelist=["black", "isort"])
-    assert out == (0, after)
+    (*out, _errors) = apply_pre_commit_rst(
+        before, context=context, whitelist=["black", "isort"]
+    )
+    assert out == [0, after]
 
-    out = apply_pre_commit_rst(before, whitelist=["black", "isort", "flake8"])
-    assert out == (1, after)
+    (*out, _errors) = apply_pre_commit_rst(
+        before, context=context, whitelist=["black", "isort", "flake8"]
+    )
+    assert out == [1, after]
 
 
 def test_format_from_file():
