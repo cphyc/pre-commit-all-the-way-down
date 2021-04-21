@@ -176,7 +176,7 @@ def apply_pre_commit_rst(
     whitelist: Sequence[str] = None,
     skiplist: Sequence[str] = None,
 ) -> Tuple[int, str, Sequence[Error]]:
-    errors = []
+    errors: Sequence[Error] = []
     ret = 0
 
     # The _*_match functions are adapted from
@@ -220,7 +220,7 @@ def apply_pre_commit_pydocstring(
     whitelist: Sequence[str] = None,
     skiplist: Sequence[str] = None,
 ) -> Tuple[int, str, Sequence[Error]]:
-    errors = []
+    errors: Sequence[Error] = []
     ret = 0
 
     def _pycon_match(match: Match[str]) -> str:
