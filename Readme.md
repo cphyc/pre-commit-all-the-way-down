@@ -1,6 +1,7 @@
 # Pre-commit all the way down
 
 [![Tests](https://github.com/cphyc/pre-commit-all-the-way-down/actions/workflows/python-package.yml/badge.svg)](https://github.com/cphyc/pre-commit-all-the-way-down/actions/workflows/python-package.yml)
+[![pre-commit.ci status](https://results.pre-commit.ci/badge/github/cphyc/pre-commit-all-the-way-down/main.svg)](https://results.pre-commit.ci/latest/github/neutrinoceros/cphyc/pre-commit-all-the-way-down)
 
 pre-commit hooks to run [`pre-commit`](https://pypi.org/project/pre-commit/) on
 code snippets embeded in files that don't match the language used.
