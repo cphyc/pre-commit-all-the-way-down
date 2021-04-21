@@ -37,8 +37,8 @@ TRAILING_NL_RE = re.compile(r"\n+\Z", re.MULTILINE)
 @dataclass
 class Context:
     filename: str
-    start: int = None
-    end: int = None
+    start: Optional[int] = None
+    end: Optional[int] = None
 
 
 @dataclass
@@ -52,8 +52,8 @@ class Error:
 def apply_pre_commit_on_block(
     block: str,
     context: Context,
-    whitelist: Sequence[str] = None,
-    skiplist: Sequence[str] = None,
+    whitelist: Optional[Sequence[str]] = None,
+    skiplist: Optional[Sequence[str]] = None,
 ) -> Tuple[int, str, Sequence[Error]]:
     """
     Fix a code block.
