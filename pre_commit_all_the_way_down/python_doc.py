@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from textwrap import dedent, indent
-from typing import Callable, Match, Optional, Sequence, Tuple
+from typing import Callable, List, Match, Optional, Sequence, Tuple
 
 BLOCK_TYPES = "(code|code-block|sourcecode|ipython)"
 PY_LANGS = "(python|py|sage|python3|py3|numpy)"
@@ -54,7 +54,7 @@ def apply_pre_commit_on_block(
     context: Context,
     whitelist: Optional[Sequence[str]] = None,
     skiplist: Optional[Sequence[str]] = None,
-) -> Tuple[int, str, Sequence[Error]]:
+) -> Tuple[int, str, List[Error]]:
     """
     Fix a code block.
 
@@ -175,8 +175,8 @@ def apply_pre_commit_rst(
     *,
     whitelist: Sequence[str] = None,
     skiplist: Sequence[str] = None,
-) -> Tuple[int, str, Sequence[Error]]:
-    errors: Sequence[Error] = []
+) -> Tuple[int, str, List[Error]]:
+    errors: List[Error] = []
     ret = 0
 
     # The _*_match functions are adapted from
@@ -219,8 +219,8 @@ def apply_pre_commit_pydocstring(
     *,
     whitelist: Sequence[str] = None,
     skiplist: Sequence[str] = None,
-) -> Tuple[int, str, Sequence[Error]]:
-    errors: Sequence[Error] = []
+) -> Tuple[int, str, List[Error]]:
+    errors: List[Error] = []
     ret = 0
 
     def _pycon_match(match: Match[str]) -> str:
@@ -258,7 +258,7 @@ def apply_pre_commit_pydocstring(
     return ret, src, errors
 
 
-def print_errors(errors: Sequence[Error]):
+def print_errors(errors: List[Error]):
     for error in errors:
         msg = []
         ctx = error.context
