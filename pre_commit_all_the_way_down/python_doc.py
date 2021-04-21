@@ -95,7 +95,7 @@ def walk_ast_helper(callback: Callable[[Match[str]], str], src: str) -> str:
 
     # Iterate over docstrings in reversed order so that lines
     # can be modified
-    for node in reversed(nodes):
+    for node in sorted(nodes, key=lambda node: -node.body[0].lineno):
         docstring = ast.get_docstring(node)
         if not docstring:
             continue
@@ -103,8 +103,8 @@ def walk_ast_helper(callback: Callable[[Match[str]], str], src: str) -> str:
         doc_node = node.body[0]
         docstring_lines = lines[doc_node.lineno - 1 : doc_node.end_lineno]
         doc = "\n".join(docstring_lines)
-
         doc = REPL_RE.sub(callback, doc)
+
         newLines = (
             newLines[: doc_node.lineno - 1]
             + doc.splitlines()
