@@ -15,10 +15,17 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.7, 3.8, 3.9]
+        python-version: [3.9]
 
     steps:
     - uses: actions/checkout@v2
+    - name: Cache pre-commit
+      uses: actions/cache@v2
+      with:
+        path: |
+          ~/.cache/pre-commit
+          ~/.cache/pip
+        key: ${{ runner.os }}-cache
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
       with:
@@ -26,8 +33,10 @@ jobs:
     - name: Install dependencies & package
       run: |
         python -m pip install --upgrade pip
-        python -m pip install pytest pre-commit
+        python -m pip install -U pytest pre-commit
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         python -m pip install .
+    - name: Setup pre-commit
+      run: pre-commit install --install-hooks
     - name: Test with pytest
       run: pytest
