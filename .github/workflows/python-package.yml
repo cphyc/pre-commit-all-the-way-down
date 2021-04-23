@@ -29,5 +29,7 @@ jobs:
         python -m pip install pytest pre-commit
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
         python -m pip install .
+    - name: Setup pre-commit
+      run: pre-commit install --install-hooks
     - name: Test with pytest
       run: pytest
