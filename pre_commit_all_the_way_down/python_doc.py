@@ -4,10 +4,12 @@ import os
 import re
 import subprocess
 import sys
+from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from textwrap import dedent, indent
-from typing import Callable, Match, Optional, Sequence, Tuple
+from typing import Callable, List, Match, Optional, Sequence, Tuple
 
 BLOCK_TYPES = "(code|code-block|sourcecode|ipython)"
 PY_LANGS = "(python|py|sage|python3|py3|numpy)"
@@ -33,9 +35,27 @@ INDENT_RE = re.compile("^ +(?=[^ ])", re.MULTILINE)
 TRAILING_NL_RE = re.compile(r"\n+\Z", re.MULTILINE)
 
 
+@dataclass
+class Context:
+    filename: str
+    start: Optional[int] = None
+    end: Optional[int] = None
+
+
+@dataclass
+class Error:
+    context: Context
+    exception: Exception
+    stdout: str
+    stderr: str
+
+
 def apply_pre_commit_on_block(
-    block: str, whitelist: Sequence[str] = None, skiplist: Sequence[str] = None
-) -> Tuple[int, str]:
+    block: str,
+    context: Context,
+    whitelist: Optional[Sequence[str]] = None,
+    skiplist: Optional[Sequence[str]] = None,
+) -> Tuple[int, str, List[Error]]:
     """
     Fix a code block.
 
@@ -43,6 +63,10 @@ def apply_pre_commit_on_block(
     ----------
     block : str
         The block to fix
+    context : Context
+        The context of this block
+    whitelist, skiplist : Sequence[str]
+        Which hooks to whitelist/skip.
 
     Notes
     -----
@@ -50,12 +74,13 @@ def apply_pre_commit_on_block(
     Python.
     """
     ret = 0
+    errors = []
     env = os.environ.copy()
     if skiplist:
         env["SKIP"] = ",".join(_ for _ in skiplist if _)
 
     def _pre_commit_helper(fname: str, hook_id: Optional[str]):
-        nonlocal ret
+        nonlocal ret, errors
         args = ["pre-commit", "run"]
         if hook_id is not None:
             args.append(hook_id)
@@ -64,8 +89,14 @@ def apply_pre_commit_on_block(
             state = subprocess.run(args, check=True, capture_output=True, env=env)
             ret |= state.returncode
         except subprocess.CalledProcessError as e:
-            print(e.stderr.decode(), file=sys.stderr)
-            print(e.stdout.decode())
+            errors.append(
+                Error(
+                    context=context,
+                    exception=e,
+                    stdout=e.stdout.decode(),
+                    stderr=e.stderr.decode(),
+                )
+            )
             ret |= e.returncode
 
     with TemporaryDirectory() as d:
@@ -78,10 +109,13 @@ def apply_pre_commit_on_block(
             _pre_commit_helper(str(fname), None)
 
         newBlock = fname.read_text()
-    return ret, newBlock
+
+    return ret, newBlock, errors
 
 
-def walk_ast_helper(callback: Callable[[Match[str]], str], src: str) -> str:
+def walk_ast_helper(
+    callback: Callable[[Match[str], Context, str], str], src: str, context: Context
+) -> str:
     lines = src.splitlines()
     newLines = lines.copy()
 
@@ -104,15 +138,23 @@ def walk_ast_helper(callback: Callable[[Match[str]], str], src: str) -> str:
 
         doc_node = node.body[0]
         docstring_lines = lines[doc_node.lineno - 1 : doc_node.end_lineno]
+        newContext = Context(
+            filename=context.filename, start=doc_node.lineno, end=doc_node.end_lineno
+        )
         doc = "\n".join(docstring_lines)
-        doc = REPL_RE.sub(callback, doc)
+        doc = REPL_RE.sub(partial(callback, context=newContext, docStringSrc=doc), doc)
 
         newLines = (
             newLines[: doc_node.lineno - 1]
             + doc.splitlines()
             + newLines[doc_node.end_lineno :]
         )
-    return "\n".join(newLines) + "\n"
+
+    formatted = "\n".join(newLines) + "\n"
+    # Return an empty file if it is empty
+    if not formatted.strip():
+        return ""
+    return formatted
 
 
 def fake_indent(block: str, level: int) -> str:
@@ -134,15 +176,24 @@ def fake_dedent(block: str, level: int) -> str:
     return dedent("\n".join(lines[i:]))
 
 
+def offset_to_lineno(src: str, offset: int) -> int:
+    return src[:offset].count("\n")
+
+
 def apply_pre_commit_rst(
-    src: str, *, whitelist: Sequence[str] = None, skiplist: Sequence[str] = None
-) -> Tuple[int, str]:
+    src: str,
+    context: Context,
+    *,
+    whitelist: Sequence[str] = None,
+    skiplist: Sequence[str] = None,
+) -> Tuple[int, str, List[Error]]:
+    errors: List[Error] = []
     ret = 0
 
     # The _*_match functions are adapted from
     # https://github.com/asottile/blacken-docs
     def _rst_match(match: Match[str]) -> str:
-        nonlocal ret
+        nonlocal ret, errors
         min_indent = min(INDENT_RE.findall(match["code"]))
         trailing_ws_match = TRAILING_NL_RE.search(match["code"])
         assert trailing_ws_match
@@ -152,9 +203,16 @@ def apply_pre_commit_rst(
         code = fake_indent(code, len(min_indent))
         # Add a trailing new line to prevent pre-commit to fail because of that
         code += "\n"
-        retcode, code = apply_pre_commit_on_block(
-            code, whitelist=whitelist, skiplist=skiplist
+        newContext = Context(
+            filename=context.filename,
+            start=offset_to_lineno(src, match.start()),
+            end=offset_to_lineno(src, match.end()),
         )
+        retcode, code, newErrors = apply_pre_commit_on_block(
+            code, newContext, whitelist=whitelist, skiplist=skiplist
+        )
+        errors.extend(newErrors)
+
         ret |= retcode
         code = fake_dedent(code, len(min_indent))
         code = code.strip()
@@ -163,17 +221,21 @@ def apply_pre_commit_rst(
 
     src = RST_RE.sub(_rst_match, src)
 
-    return ret, src
+    return ret, src, errors
 
 
 def apply_pre_commit_pydocstring(
-    src: str, *, whitelist: Sequence[str] = None, skiplist: Sequence[str] = None
-) -> Tuple[int, str]:
-
+    src: str,
+    context: Context,
+    *,
+    whitelist: Sequence[str] = None,
+    skiplist: Sequence[str] = None,
+) -> Tuple[int, str, List[Error]]:
+    errors: List[Error] = []
     ret = 0
 
-    def _pycon_match(match: Match[str]) -> str:
-        nonlocal ret
+    def _pycon_match(match: Match[str], context: Context, docStringSrc: str) -> str:
+        nonlocal ret, errors
         head_ws = match["indent"]
         trailing_ws_match = TRAILING_NL_RE.search(match["content"])
         assert trailing_ws_match
@@ -181,10 +243,21 @@ def apply_pre_commit_pydocstring(
         code = "\n".join(
             line[len(head_ws) + 4 :] for line in match["content"].splitlines()
         )
+        # Special case for
+        # >>> # line with only a comment
+        if code.count("\n") == 0 and code.startswith("#"):
+            return match.group(0)
         code = fake_indent(code, len(head_ws) + 4)
-        retcode, code = apply_pre_commit_on_block(
-            code, whitelist=whitelist, skiplist=skiplist
+        docStringStart = context.start if context.start is not None else 0
+        start = docStringStart + offset_to_lineno(docStringSrc, match.start())
+        end = docStringStart + offset_to_lineno(docStringSrc, match.end())
+
+        newContext = Context(filename=context.filename, start=start, end=end)
+        retcode, code, newErrors = apply_pre_commit_on_block(
+            code, newContext, whitelist=whitelist, skiplist=skiplist
         )
+        errors.extend(newErrors)
+
         ret |= retcode
         code = fake_dedent(code, len(head_ws) + 4)
         code = code.strip()
@@ -200,30 +273,54 @@ def apply_pre_commit_pydocstring(
         newContent = "".join(code_lines)
         return f"{newContent.rstrip()}{trailing_ws}"
 
-    src = walk_ast_helper(_pycon_match, src)
+    src = walk_ast_helper(_pycon_match, src, context)
 
-    return ret, src
+    return ret, src, errors
+
+
+def print_errors(errors: List[Error]):
+    for error in errors:
+        msg = []
+        ctx = error.context
+        msg.append(f"Error in {ctx.filename}:{ctx.start}:{ctx.end}")
+        stdout = error.stdout.rstrip()
+        if stdout.strip():
+            msg.append("STDOUT was:")
+            msg.append(indent(stdout, " | ", predicate=lambda _line: True))
+        stderr = error.stderr.rstrip()
+        if stderr.strip():
+            msg.append("STDERR was:")
+            msg.append(indent(stderr, " | ", predicate=lambda _line: True))
+
+        print("\n".join(msg), file=sys.stderr)
 
 
 def apply_pre_commit_on_file(
-    filename: str, *, whitelist: Sequence[str] = None, skiplist: Sequence[str] = None
+    filename: str,
+    *,
+    whitelist: Sequence[str] = None,
+    skiplist: Sequence[str] = None,
+    write_back=True,
 ) -> int:
     with open(filename, encoding="UTF-8") as f:
         contents = f.read()
 
     _filename, extension = os.path.splitext(filename)
+    context = Context(filename=filename)
     if extension == ".rst":
-        retcode, newContents = apply_pre_commit_rst(
-            contents, whitelist=whitelist, skiplist=skiplist
+        retcode, newContents, errors = apply_pre_commit_rst(
+            contents, context, whitelist=whitelist, skiplist=skiplist
         )
     elif extension == ".py":
-        retcode, newContents = apply_pre_commit_pydocstring(
-            contents, whitelist=whitelist, skiplist=skiplist
+        retcode, newContents, errors = apply_pre_commit_pydocstring(
+            contents, context, whitelist=whitelist, skiplist=skiplist
         )
     else:
         return 0
 
-    if newContents != contents:
+    print_errors(errors)
+
+    if newContents != contents and write_back:
         print(f"Rewriting {filename}", file=sys.stderr)
         with open(filename, mode="w") as f:
             f.write(newContents)
@@ -250,12 +347,16 @@ def main(argv: Sequence[str] = None) -> int:
         type=str,
         help="A skiplist of hook ids to skip",
     )
+    parser.add_argument("--no-write-back", dest="write_back", action="store_false")
     args = parser.parse_args(argv)
 
     retv = 0
     for filename in args.filenames:
         retv += apply_pre_commit_on_file(
-            filename, whitelist=args.whitelist, skiplist=args.skiplist
+            filename,
+            whitelist=args.whitelist,
+            skiplist=args.skiplist,
+            write_back=args.write_back,
         )
 
     return retv
