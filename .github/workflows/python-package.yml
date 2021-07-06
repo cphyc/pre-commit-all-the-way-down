@@ -39,4 +39,4 @@ jobs:
     - name: Setup pre-commit
       run: pre-commit install --install-hooks
     - name: Test with pytest
-      run: pytest
+      run: pytest -vvv
