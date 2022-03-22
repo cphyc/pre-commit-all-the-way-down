@@ -129,9 +129,10 @@ def walk_ast_helper(
 
     # Iterate over docstrings in reversed order so that lines
     # can be modified
-    for node in sorted(
-        nodes, key=lambda node: -node.body[0].lineno if node.body else 0
-    ):
+    nodes_by_decr_lineno = sorted(
+        nodes, key=lambda node: node.body[0].lineno if node.body else 0, reverse=True
+    )
+    for node in nodes_by_decr_lineno:
         docstring = ast.get_docstring(node)
         if not docstring:
             continue
