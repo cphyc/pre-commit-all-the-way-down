@@ -185,8 +185,8 @@ def apply_pre_commit_rst(
     src: str,
     context: Context,
     *,
-    whitelist: Sequence[str] = None,
-    skiplist: Sequence[str] = None,
+    whitelist: Optional[Sequence[str]] = None,
+    skiplist: Optional[Sequence[str]] = None,
 ) -> Tuple[int, str, List[Error]]:
     errors: List[Error] = []
     ret = 0
@@ -229,8 +229,8 @@ def apply_pre_commit_pydocstring(
     src: str,
     context: Context,
     *,
-    whitelist: Sequence[str] = None,
-    skiplist: Sequence[str] = None,
+    whitelist: Optional[Sequence[str]] = None,
+    skiplist: Optional[Sequence[str]] = None,
 ) -> Tuple[int, str, List[Error]]:
     errors: List[Error] = []
     ret = 0
@@ -299,8 +299,8 @@ def print_errors(errors: List[Error]):
 def apply_pre_commit_on_file(
     filename: str,
     *,
-    whitelist: Sequence[str] = None,
-    skiplist: Sequence[str] = None,
+    whitelist: Optional[Sequence[str]] = None,
+    skiplist: Optional[Sequence[str]] = None,
     write_back=True,
 ) -> int:
     with open(filename, encoding="UTF-8") as f:
@@ -330,7 +330,7 @@ def apply_pre_commit_on_file(
     return retcode
 
 
-def main(argv: Sequence[str] = None) -> int:
+def main(argv: Optional[Sequence[str]] = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("filenames", nargs="*")
     group = parser.add_argument_group()
