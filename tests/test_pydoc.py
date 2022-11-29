@@ -17,7 +17,7 @@ def foo():
     >>> y=1+1+(2
     ... +4)
     >>> x = "This is a very long chunk that should be split"'''
-    + ''' "around" "here" "to span" "multiple" "lines"
+    + ''' "around" "here" "to span" "multiple" "lines"  # noqa: E501
     """
     pass
 '''

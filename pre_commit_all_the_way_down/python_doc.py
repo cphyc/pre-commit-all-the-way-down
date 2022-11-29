@@ -68,6 +68,15 @@ def apply_pre_commit_on_block(
     whitelist, skiplist : Sequence[str]
         Which hooks to whitelist/skip.
 
+    Returns
+    -------
+    exit_code : int
+        The exit code of the pre-commit run
+    fixed_block : str
+        The fixed block
+    errors : list[Error]
+        The errors that occurred
+
     Notes
     -----
     The code block should have no leading indentation and be valid
