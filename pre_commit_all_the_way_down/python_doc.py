@@ -143,7 +143,9 @@ def walk_ast_helper(
             filename=context.filename, start=doc_node.lineno, end=doc_node.end_lineno
         )
         doc = "\n".join(docstring_lines)
-        doc = REPL_RE.sub(partial(callback, context=new_context, docStringSrc=doc), doc)
+        doc = REPL_RE.sub(
+            partial(callback, context=new_context, doc_string_src=doc), doc
+        )
 
         new_lines = (
             new_lines[: doc_node.lineno - 1]
