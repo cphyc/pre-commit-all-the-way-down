@@ -9,7 +9,7 @@ from functools import partial
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from textwrap import dedent, indent
-from typing import Callable, List, Match, Optional, Sequence, Tuple
+from typing import Callable, Match, Sequence
 
 BLOCK_TYPES = "(code|code-block|sourcecode|ipython)"
 PY_LANGS = "(python|py|sage|python3|py3|numpy)"
@@ -38,8 +38,8 @@ TRAILING_NL_RE = re.compile(r"\n+\Z", re.MULTILINE)
 @dataclass
 class Context:
     filename: str
-    start: Optional[int] = None
-    end: Optional[int] = None
+    start: int | None = None
+    end: int | None = None
 
 
 @dataclass
@@ -53,9 +53,9 @@ class Error:
 def apply_pre_commit_on_block(
     block: str,
     context: Context,
-    whitelist: Optional[Sequence[str]] = None,
-    skiplist: Optional[Sequence[str]] = None,
-) -> Tuple[int, str, List[Error]]:
+    whitelist: Sequence[str] | None = None,
+    skiplist: Sequence[str] | None = None,
+) -> tuple[int, str, list[Error]]:
     """
     Fix a code block.
 
@@ -79,7 +79,7 @@ def apply_pre_commit_on_block(
     if skiplist:
         env["SKIP"] = ",".join(_ for _ in skiplist if _)
 
-    def _pre_commit_helper(fname: str, hook_id: Optional[str]):
+    def _pre_commit_helper(fname: str, hook_id: str | None):
         nonlocal ret, errors
         args = ["pre-commit", "run"]
         if hook_id is not None:
@@ -108,16 +108,16 @@ def apply_pre_commit_on_block(
         else:
             _pre_commit_helper(str(fname), None)
 
-        newBlock = fname.read_text()
+        new_block = fname.read_text()
 
-    return ret, newBlock, errors
+    return ret, new_block, errors
 
 
 def walk_ast_helper(
     callback: Callable[[Match[str], Context, str], str], src: str, context: Context
 ) -> str:
     lines = src.splitlines()
-    newLines = lines.copy()
+    new_lines = lines.copy()
 
     # Extract all functions and classes
     tree = ast.parse(src)
@@ -139,19 +139,19 @@ def walk_ast_helper(
 
         doc_node = node.body[0]
         docstring_lines = lines[doc_node.lineno - 1 : doc_node.end_lineno]
-        newContext = Context(
+        new_context = Context(
             filename=context.filename, start=doc_node.lineno, end=doc_node.end_lineno
         )
         doc = "\n".join(docstring_lines)
-        doc = REPL_RE.sub(partial(callback, context=newContext, docStringSrc=doc), doc)
+        doc = REPL_RE.sub(partial(callback, context=new_context, docStringSrc=doc), doc)
 
-        newLines = (
-            newLines[: doc_node.lineno - 1]
+        new_lines = (
+            new_lines[: doc_node.lineno - 1]
             + doc.splitlines()
-            + newLines[doc_node.end_lineno :]
+            + new_lines[doc_node.end_lineno :]
         )
 
-    formatted = "\n".join(newLines) + "\n"
+    formatted = "\n".join(new_lines) + "\n"
     # Return an empty file if it is empty
     if not formatted.strip():
         return ""
@@ -160,13 +160,13 @@ def walk_ast_helper(
 
 def fake_indent(block: str, level: int) -> str:
     i = 0
-    newBlock = ""
+    new_block = ""
     while i * 4 < level:
-        newBlock += "    " * i + "if True:\n"
+        new_block += "    " * i + "if True:\n"
         i += 1
 
-    newBlock += indent(block, " " * (i * 4))
-    return newBlock
+    new_block += indent(block, " " * (i * 4))
+    return new_block
 
 
 def fake_dedent(block: str, level: int) -> str:
@@ -185,10 +185,10 @@ def apply_pre_commit_rst(
     src: str,
     context: Context,
     *,
-    whitelist: Optional[Sequence[str]] = None,
-    skiplist: Optional[Sequence[str]] = None,
-) -> Tuple[int, str, List[Error]]:
-    errors: List[Error] = []
+    whitelist: Sequence[str] | None = None,
+    skiplist: Sequence[str] | None = None,
+) -> tuple[int, str, list[Error]]:
+    errors: list[Error] = []
     ret = 0
 
     # The _*_match functions are adapted from
@@ -197,22 +197,23 @@ def apply_pre_commit_rst(
         nonlocal ret, errors
         min_indent = min(INDENT_RE.findall(match["code"]))
         trailing_ws_match = TRAILING_NL_RE.search(match["code"])
-        assert trailing_ws_match
+        if not trailing_ws_match:
+            raise RuntimeError("No trailing whitespace found")
         trailing_ws = trailing_ws_match.group()
         code = TRAILING_NL_RE.sub("", match["code"])
         code = dedent(code)
         code = fake_indent(code, len(min_indent))
         # Add a trailing new line to prevent pre-commit to fail because of that
         code += "\n"
-        newContext = Context(
+        new_context = Context(
             filename=context.filename,
             start=offset_to_lineno(src, match.start()),
             end=offset_to_lineno(src, match.end()),
         )
-        retcode, code, newErrors = apply_pre_commit_on_block(
-            code, newContext, whitelist=whitelist, skiplist=skiplist
+        retcode, code, new_errors = apply_pre_commit_on_block(
+            code, new_context, whitelist=whitelist, skiplist=skiplist
         )
-        errors.extend(newErrors)
+        errors.extend(new_errors)
 
         ret |= retcode
         code = fake_dedent(code, len(min_indent))
@@ -229,17 +230,18 @@ def apply_pre_commit_pydocstring(
     src: str,
     context: Context,
     *,
-    whitelist: Optional[Sequence[str]] = None,
-    skiplist: Optional[Sequence[str]] = None,
-) -> Tuple[int, str, List[Error]]:
-    errors: List[Error] = []
+    whitelist: Sequence[str] | None = None,
+    skiplist: Sequence[str] | None = None,
+) -> tuple[int, str, list[Error]]:
+    errors: list[Error] = []
     ret = 0
 
-    def _pycon_match(match: Match[str], context: Context, docStringSrc: str) -> str:
+    def _pycon_match(match: Match[str], context: Context, doc_string_src: str) -> str:
         nonlocal ret, errors
         head_ws = match["indent"]
         trailing_ws_match = TRAILING_NL_RE.search(match["content"])
-        assert trailing_ws_match
+        if not trailing_ws_match:
+            raise RuntimeError("No trailing whitespace found")
         trailing_ws = trailing_ws_match.group()
         code = "\n".join(
             line[len(head_ws) + 4 :] for line in match["content"].splitlines()
@@ -249,15 +251,15 @@ def apply_pre_commit_pydocstring(
         if code.count("\n") == 0 and code.startswith("#"):
             return match.group(0)
         code = fake_indent(code, len(head_ws) + 4)
-        docStringStart = context.start if context.start is not None else 0
-        start = docStringStart + offset_to_lineno(docStringSrc, match.start())
-        end = docStringStart + offset_to_lineno(docStringSrc, match.end())
+        doc_string_start = context.start if context.start is not None else 0
+        start = doc_string_start + offset_to_lineno(doc_string_src, match.start())
+        end = doc_string_start + offset_to_lineno(doc_string_src, match.end())
 
-        newContext = Context(filename=context.filename, start=start, end=end)
-        retcode, code, newErrors = apply_pre_commit_on_block(
-            code, newContext, whitelist=whitelist, skiplist=skiplist
+        new_context = Context(filename=context.filename, start=start, end=end)
+        retcode, code, new_errors = apply_pre_commit_on_block(
+            code, new_context, whitelist=whitelist, skiplist=skiplist
         )
-        errors.extend(newErrors)
+        errors.extend(new_errors)
 
         ret |= retcode
         code = fake_dedent(code, len(head_ws) + 4)
@@ -271,15 +273,15 @@ def apply_pre_commit_pydocstring(
                 code_lines.append(f"{head_ws}>>> {line}\n")
             else:
                 code_lines.append(f"{head_ws}... {line}\n")
-        newContent = "".join(code_lines)
-        return f"{newContent.rstrip()}{trailing_ws}"
+        new_content = "".join(code_lines)
+        return f"{new_content.rstrip()}{trailing_ws}"
 
     src = walk_ast_helper(_pycon_match, src, context)
 
     return ret, src, errors
 
 
-def print_errors(errors: List[Error]):
+def print_errors(errors: list[Error]):
     for error in errors:
         msg = []
         ctx = error.context
@@ -299,8 +301,8 @@ def print_errors(errors: List[Error]):
 def apply_pre_commit_on_file(
     filename: str,
     *,
-    whitelist: Optional[Sequence[str]] = None,
-    skiplist: Optional[Sequence[str]] = None,
+    whitelist: Sequence[str] | None = None,
+    skiplist: Sequence[str] | None = None,
     write_back=True,
 ) -> int:
     with open(filename, encoding="UTF-8") as f:
@@ -309,11 +311,11 @@ def apply_pre_commit_on_file(
     _filename, extension = os.path.splitext(filename)
     context = Context(filename=filename)
     if extension == ".rst":
-        retcode, newContents, errors = apply_pre_commit_rst(
+        retcode, new_contents, errors = apply_pre_commit_rst(
             contents, context, whitelist=whitelist, skiplist=skiplist
         )
     elif extension == ".py":
-        retcode, newContents, errors = apply_pre_commit_pydocstring(
+        retcode, new_contents, errors = apply_pre_commit_pydocstring(
             contents, context, whitelist=whitelist, skiplist=skiplist
         )
     else:
@@ -321,16 +323,16 @@ def apply_pre_commit_on_file(
 
     print_errors(errors)
 
-    if newContents != contents and write_back:
+    if new_contents != contents and write_back:
         print(f"Rewriting {filename}", file=sys.stderr)
         with open(filename, mode="w") as f:
-            f.write(newContents)
+            f.write(new_contents)
         return 1 | retcode
 
     return retcode
 
 
-def main(argv: Optional[Sequence[str]] = None) -> int:
+def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("filenames", nargs="*")
     group = parser.add_argument_group()
