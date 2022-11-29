@@ -12,5 +12,10 @@ sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
 
 [tool.black]
 line-length = 88
-# note : 'py39' is not an available option as of black 19.10b0
-target-version = ['py36', 'py37', 'py38']
+target-version = ['py37', 'py38', 'py39', 'py310', 'py311']
+
+[tool.ruff]
+# Enable Pyflakes `E` and `F` codes by default.
+select = ["E", "C", "F", "U", "B", "A", "YTT", "S", "N"]
+ignore = []
+target-version = 'py310'
