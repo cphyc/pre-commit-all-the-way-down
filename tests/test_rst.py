@@ -34,7 +34,7 @@ def test_format_from_string():
 
     context = Context(filename="dummy")
     (*out, _errors) = apply_pre_commit_rst(before, context=context, skiplist=["flake8"])
-    assert out == [0, after]
+    assert out == [1, after]
 
     (*out, _errors) = apply_pre_commit_rst(
         before, context=context, whitelist=["black", "isort"]
