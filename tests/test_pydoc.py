@@ -50,7 +50,7 @@ def test_format_from_string():
     (*out, _errors) = apply_pre_commit_pydocstring(
         before, context=context, skiplist=["end-of-file-fixer", "flake8"]
     )
-    assert out == [0, after]
+    assert out == [1, after]
 
     (*out, _errors) = apply_pre_commit_pydocstring(
         before, context=context, whitelist=["black", "isort"]
