@@ -8,19 +8,21 @@ from pre_commit_all_the_way_down.python_doc import (
     apply_pre_commit_pydocstring,
 )
 
-before = dedent(
+before = (
     '''\
-    def foo():
-        """
-        >>> import numpy as np
-        >>> from foo import c, b, a
-        >>> y=1+1+(2
-        ... +4)
-        >>> x = "This is a very long chunk that should be split" "around" "here" "to span" "multiple" "lines"  # noqa: E501
-        """
-        pass
-    '''
+def foo():
+    """
+    >>> import numpy as np
+    >>> from foo import c, b, a
+    >>> y=1+1+(2
+    ... +4)
+    >>> x = "This is a very long chunk that should be split"'''
+    + ''' "around" "here" "to span" "multiple" "lines"
+    """
+    pass
+'''
 )
+
 after = dedent(
     '''\
     def foo():
