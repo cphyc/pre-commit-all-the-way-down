@@ -12,7 +12,7 @@ sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
 
 [tool.black]
 line-length = 88
-target-version = ['py37', 'py38', 'py39', 'py310', 'py311']
+target-version = ['py310', 'py311']
 
 [tool.ruff]
 # Enable Pyflakes `E` and `F` codes by default.
