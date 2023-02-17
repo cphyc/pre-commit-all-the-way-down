@@ -16,7 +16,7 @@ target-version = ['py310', 'py311']
 
 [tool.ruff]
 # Enable Pyflakes `E` and `F` codes by default.
-select = ["E", "C", "F", "U", "B", "A", "YTT", "S", "N"]
+select = ["E", "C", "F", "UP", "B", "A", "YTT", "S", "N"]
 ignore = []
 target-version = 'py310'
 
