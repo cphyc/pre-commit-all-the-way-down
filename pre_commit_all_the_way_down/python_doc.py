@@ -4,12 +4,12 @@ import os
 import re
 import subprocess
 import sys
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from textwrap import dedent, indent
-from typing import Callable, Match, Sequence
 
 BLOCK_TYPES = "(code|code-block|sourcecode|ipython)"
 PY_LANGS = "(python|py|sage|python3|py3|numpy)"
@@ -123,7 +123,7 @@ def apply_pre_commit_on_block(
 
 
 def walk_ast_helper(
-    callback: Callable[[Match[str], Context, str], str], src: str, context: Context
+    callback: Callable[[re.Match[str], Context, str], str], src: str, context: Context
 ) -> str:
     lines = src.splitlines()
     new_lines = lines.copy()
@@ -204,7 +204,7 @@ def apply_pre_commit_rst(
 
     # The _*_match functions are adapted from
     # https://github.com/asottile/blacken-docs
-    def _rst_match(match: Match[str]) -> str:
+    def _rst_match(match: re.Match[str]) -> str:
         nonlocal ret, errors
         min_indent = min(INDENT_RE.findall(match["code"]))
         trailing_ws_match = TRAILING_NL_RE.search(match["code"])
@@ -247,7 +247,9 @@ def apply_pre_commit_pydocstring(
     errors: list[Error] = []
     ret = 0
 
-    def _pycon_match(match: Match[str], context: Context, doc_string_src: str) -> str:
+    def _pycon_match(
+        match: re.Match[str], context: Context, doc_string_src: str
+    ) -> str:
         nonlocal ret, errors
         head_ws = match["indent"]
         trailing_ws_match = TRAILING_NL_RE.search(match["content"])
