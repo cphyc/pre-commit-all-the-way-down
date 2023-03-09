@@ -133,7 +133,7 @@ def walk_ast_helper(
     nodes = [
         node
         for node in ast.walk(tree)
-        if isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.Module))
+        if isinstance(node, ast.FunctionDef | ast.ClassDef | ast.Module)
     ]
 
     # Iterate over docstrings in reversed order so that lines
