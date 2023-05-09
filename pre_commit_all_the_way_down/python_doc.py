@@ -95,7 +95,9 @@ def apply_pre_commit_on_block(
             args.append(hook_id)
         args.extend(("--files", fname))
         try:
-            state = subprocess.run(args, check=True, capture_output=True, env=env)
+            state = subprocess.run(
+                args, check=True, capture_output=True, env=env  # noqa: S603
+            )
             ret |= state.returncode
         except subprocess.CalledProcessError as e:
             errors.append(
