@@ -10,16 +10,6 @@ repos:
     - id: trailing-whitespace
     - id: end-of-file-fixer
     - id: no-commit-to-branch
--   repo: https://github.com/psf/black
-    rev: 24.4.2
-    hooks:
-    - id: black
-      language_version: python3
--   repo: https://github.com/PyCQA/isort
-    rev: '5.13.2'
-    hooks:
-    - id: isort
-      additional_dependencies: [toml]
 -   repo: https://github.com/asottile/setup-cfg-fmt
     rev: v2.5.0
     hooks:
@@ -32,3 +22,4 @@ repos:
     rev: v0.4.2
     hooks:
       - id: ruff
+        args: [--fix, "--show-fixes"]
